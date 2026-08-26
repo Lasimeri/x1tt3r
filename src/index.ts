@@ -53,11 +53,41 @@ async function fetchTweet(id: string): Promise<any | null> {
 	return data;
 }
 
+// Full display text: t.co links expanded from entities.urls, media t.co
+// tails stripped via entities.media.
+function expandText(t: any): string {
+	let text: string = t.text || '';
+	if (Array.isArray(t.entities?.urls)) {
+		for (const u of t.entities.urls) {
+			if (u.url && u.expanded_url) text = text.split(u.url).join(u.expanded_url);
+		}
+	}
+	if (Array.isArray(t.entities?.media)) {
+		for (const m of t.entities.media) {
+			if (m.url) text = text.split(m.url).join('');
+		}
+	}
+	return text.trim();
+}
+
 function tweetPage(t: any, user: string, id: string, host: string): Response {
 	const canonical = `${XCOM}/${user}/status/${id}`;
 	const name = t.user?.name || user;
 	const screen = t.user?.screen_name || user;
-	const text = t.text || '';
+
+	// Entire tweet text, then reply-to context (the tweet this one
+	// answers, carried in `parent`), then quoted-tweet text.
+	let text = expandText(t);
+	if (t.parent?.text) {
+		const pu = t.parent.user?.screen_name || t.in_reply_to_screen_name || '?';
+		text += `\n\n↪️ Replying to @${pu}: ${expandText(t.parent)}`;
+	} else if (t.in_reply_to_screen_name) {
+		text += `\n\n↪️ Replying to @${t.in_reply_to_screen_name}`;
+	}
+	if (t.quoted_tweet?.text) {
+		const qu = t.quoted_tweet.user?.screen_name || '?';
+		text += `\n\n❝ Quoting @${qu}: ${expandText(t.quoted_tweet)}`;
+	}
 	const photos: any[] = Array.isArray(t.photos) ? t.photos : [];
 
 	// Highest-bitrate mp4, covering both payload shapes the endpoint emits.

@@ -11,6 +11,13 @@ who click the link get a 302 straight to x.com.
   an HTML shell of OpenGraph/Twitter-card meta tags built from the
   public `cdn.syndication.twimg.com/tweet-result` endpoint. No auth, no
   scraping.
+- The description carries the entire tweet text with t.co links
+  expanded and media-link tails stripped, then the text of the tweet it
+  replies to (the `parent` object), then any quoted tweet's text.
+  Replies *to* the linked tweet (children) are not available from the
+  unauthenticated endpoint and are not included.
+- The Cloudflare worker is named `dmcamyass`; the public surface is
+  `x1tt3r.com`.
 - Every other user agent gets a 302 to the canonical x.com URL.
 - `/oembed` serves the small JSON Discord fetches for the author line
   (reply/like counts).
