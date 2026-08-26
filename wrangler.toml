@@ -1,0 +1,13 @@
+name = "x1tt3r"
+main = "src/index.ts"
+compatibility_date = "2026-04-07"
+workers_dev = true
+preview_urls = false
+
+[[routes]]
+pattern = "x1tt3r.com"
+custom_domain = true
+
+[[routes]]
+pattern = "www.x1tt3r.com"
+custom_domain = true
