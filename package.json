@@ -1,10 +1,14 @@
 {
-  "name": "dmcamyass",
+  "name": "x1tt3r",
+  "version": "1.0.0",
   "private": true,
+  "description": "Twitter/X embed fixer for Discord, on a Cloudflare Worker",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "smoke": "./scripts/smoke.sh",
+    "tail": "wrangler tail"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260825.1",

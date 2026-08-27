@@ -1,8 +1,18 @@
+# Cloudflare Worker configuration.
+#
+# Forking? Change `name` and the two route patterns to your domain.
+# Nothing in src/ needs editing: the worker reads its hostname from
+# each request. See SETUP.md.
+
 name = "dmcamyass"
 main = "src/index.ts"
 compatibility_date = "2026-04-07"
 workers_dev = true
 preview_urls = false
+
+# Custom domains create their own DNS records and certificates on
+# deploy. The zone must already be active in your Cloudflare account.
+# Delete both blocks to deploy to *.workers.dev only.
 
 [[routes]]
 pattern = "x1tt3r.com"
