@@ -132,7 +132,10 @@ function tweetPage(t: any, user: string, id: string, host: string, full: { text?
 	}
 
 	const stats = `💬 ${(t.conversation_count ?? 0).toLocaleString('en-US')}   ❤️ ${(t.favorite_count ?? 0).toLocaleString('en-US')}`;
-	const oembed = `https://${host}/oembed?` + new URLSearchParams({ a: stats, u: canonical });
+	// The author line is width-truncated by Discord on narrow-media
+	// embeds just like the title, but its smaller font fits more
+	// characters; name leads so a cut costs stats, not identity.
+	const oembed = `https://${host}/oembed?` + new URLSearchParams({ a: `${name} (@${screen})   ${stats}`, u: canonical });
 
 	const tags: string[] = [
 		'<meta charset="utf-8">',
