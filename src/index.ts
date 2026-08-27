@@ -70,14 +70,35 @@ function expandText(t: any): string {
 	return text.trim();
 }
 
-function tweetPage(t: any, user: string, id: string, host: string): Response {
+// Note-tweet fallback. tweet-result truncates posts over ~280 chars to
+// a `note_tweet` id stub with no full text (oEmbed truncates too), so
+// long posts need a second source. FxEmbed's public API carries the
+// complete text; on any failure the truncated syndication text stands.
+async function fetchFullText(id: string): Promise<{ text?: string; quoteText?: string } | null> {
+	try {
+		const res = await fetch(`https://api.fxtwitter.com/status/${id}`, {
+			headers: { 'User-Agent': 'x1tt3r-embed/1.0 (note-tweet fallback)' },
+			cf: { cacheTtl: 3600, cacheEverything: true },
+		});
+		if (!res.ok) return null;
+		const d: any = await res.json().catch(() => null);
+		const tw = d?.tweet;
+		if (!tw?.text) return null;
+		return { text: tw.text, quoteText: tw.quote?.text };
+	} catch {
+		return null;
+	}
+}
+
+function tweetPage(t: any, user: string, id: string, host: string, full: { text?: string; quoteText?: string } | null): Response {
 	const canonical = `${XCOM}/${user}/status/${id}`;
 	const name = t.user?.name || user;
 	const screen = t.user?.screen_name || user;
 
 	// Entire tweet text, then reply-to context (the tweet this one
-	// answers, carried in `parent`), then quoted-tweet text.
-	let text = expandText(t);
+	// answers, carried in `parent`), then quoted-tweet text. FxEmbed
+	// text is pre-expanded; it wins only when the tweet is note-flagged.
+	let text = (t.note_tweet && full?.text) ? full.text : expandText(t);
 	if (t.parent?.text) {
 		const pu = t.parent.user?.screen_name || t.in_reply_to_screen_name || '?';
 		text += `\n\n↪️ Replying to @${pu}: ${expandText(t.parent)}`;
@@ -86,7 +107,8 @@ function tweetPage(t: any, user: string, id: string, host: string): Response {
 	}
 	if (t.quoted_tweet?.text) {
 		const qu = t.quoted_tweet.user?.screen_name || '?';
-		text += `\n\n❝ Quoting @${qu}: ${expandText(t.quoted_tweet)}`;
+		const qt = (t.quoted_tweet.note_tweet && full?.quoteText) ? full.quoteText : expandText(t.quoted_tweet);
+		text += `\n\n❝ Quoting @${qu}: ${qt}`;
 	}
 	const photos: any[] = Array.isArray(t.photos) ? t.photos : [];
 
@@ -221,6 +243,7 @@ export default {
 		}
 		// Prefer the API's screen_name when the path used /i/ or a stale handle.
 		const screen = t.user?.screen_name && USER_RE.test(t.user.screen_name) ? t.user.screen_name : user;
-		return tweetPage(t, screen, id, url.hostname);
+		const full = (t.note_tweet || t.quoted_tweet?.note_tweet) ? await fetchFullText(id) : null;
+		return tweetPage(t, screen, id, url.hostname, full);
 	},
 };

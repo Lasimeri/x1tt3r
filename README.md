@@ -16,6 +16,10 @@ who click the link get a 302 straight to x.com.
   replies to (the `parent` object), then any quoted tweet's text.
   Replies *to* the linked tweet (children) are not available from the
   unauthenticated endpoint and are not included.
+- Long posts ("note tweets", over ~280 chars) are truncated by the
+  syndication endpoint to a `note_tweet` id stub. For those the worker
+  makes one fallback fetch to `api.fxtwitter.com/status/:id` for the
+  complete text; if that fails, the truncated text is served.
 - The Cloudflare worker is named `dmcamyass`; the public surface is
   `x1tt3r.com`.
 - Every other user agent gets a 302 to the canonical x.com URL.
