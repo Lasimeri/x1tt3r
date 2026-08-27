@@ -38,7 +38,8 @@ printf 'smoke test: %s\n\n' "$BASE"
 
 printf 'routing\n'
 check 'human gets 302 to x.com'   '302 https://x.com/jack/status/20' "$(human /jack/status/20)"
-check 'root serves usage text'    "Replace x.com with $HOST"         "$(curl -sS "$BASE/")"
+check 'root serves the home page' "og:site_name\" content=\"$HOST\"" "$(curl -sS "$BASE/")"
+check 'home page links the repo'  'github.com/Lasimeri/x1tt3r'      "$(curl -sS "$BASE/")"
 check 'garbage path 404s'         '404'                              "$(code '/jack/status/20%27%22')"
 check 'unknown path 404s'         '404'                              "$(code '/not/a/tweet')"
 

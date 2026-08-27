@@ -5,7 +5,7 @@ import { CACHE_MISSING, CACHE_OK, THEME_COLOR, XCOM } from './config';
 import { buildText, pickPhotos, pickVideo } from './twitter';
 
 /** HTML entity escape for attribute-position interpolation. */
-function esc(s: string): string {
+export function esc(s: string): string {
 	return s.replace(/[&<>"']/g, c => (
 		{ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as Record<string, string>
 	)[c]);
@@ -124,26 +124,6 @@ export function oembedResponse(host: string, params: URLSearchParams): Response 
 			'Content-Type': 'application/json',
 			'Cache-Control': `public, max-age=${CACHE_OK}`,
 			'X-Content-Type-Options': 'nosniff',
-		},
-	});
-}
-
-/** Plain-text landing page at the root. */
-export function usagePage(host: string): Response {
-	const body = [
-		`${host}`,
-		'',
-		`Replace x.com with ${host} in any post link and it embeds properly in Discord.`,
-		'',
-		`  https://x.com/user/status/123   ->   https://${host}/user/status/123`,
-		'',
-		'Clicking the link still takes you to x.com.',
-		'',
-	].join('\n');
-	return new Response(body, {
-		headers: {
-			'Content-Type': 'text/plain; charset=utf-8',
-			'Cache-Control': `public, max-age=${CACHE_OK}`,
 		},
 	});
 }

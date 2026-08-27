@@ -27,6 +27,7 @@ Live at **[x1tt3r.com](https://x1tt3r.com)**. To run your own, see **[SETUP.md](
 | `src/config.ts` | Every knob worth turning (theme colour, crawler list, limits) |
 | `src/twitter.ts` | Talks to X, assembles the post text |
 | `src/render.ts` | Builds the meta tags and the oEmbed document |
+| `src/home.ts` | The root page: styled landing page and link converter |
 | `scripts/smoke.sh` | Tests a live deployment end to end |
 | `wrangler.toml` | Worker name and domains |
 

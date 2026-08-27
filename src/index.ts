@@ -9,7 +9,8 @@
 // unchanged on any domain you point at it. See SETUP.md.
 
 import { BOT_UA, ID_RE, RATE_LIMIT, RATE_WINDOW_MS, USER_RE, XCOM } from './config';
-import { oembedResponse, tweetPage, unavailablePage, usagePage } from './render';
+import { homePage } from './home';
+import { oembedResponse, tweetPage, unavailablePage } from './render';
 import { fetchFullText, fetchTweet, isNoteTweet, resolveHandle } from './twitter';
 
 // Per-isolate rate limit. Resets when the isolate recycles, which is
@@ -60,7 +61,7 @@ export default {
 			return oembedResponse(host, url.searchParams);
 		}
 		if (url.pathname === '/') {
-			return usagePage(host);
+			return homePage(host);
 		}
 
 		const parsed = parsePath(url.pathname);

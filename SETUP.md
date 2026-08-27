@@ -188,8 +188,9 @@ the full post text; and any media, with video playable inline.
 
 ## 5. Customizing
 
-Everything adjustable is in `src/config.ts`. Nothing else needs editing to run
-on your own domain.
+Everything adjustable is in `src/config.ts`. The root page lives in
+`src/home.ts`, styled after seaof.glass and derived from the request
+hostname. Nothing needs editing to run on your own domain.
 
 | Setting | Default | Effect |
 |---|---|---|
