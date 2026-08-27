@@ -141,7 +141,10 @@ function tweetPage(t: any, user: string, id: string, host: string, full: { text?
 		`<meta property="og:url" content="${esc(canonical)}">`,
 		`<meta property="og:title" content="${esc(`${name} (@${screen})`)}">`,
 		`<meta property="og:description" content="${esc(text)}">`,
-		`<link rel="alternate" type="application/json+oembed" href="${esc(oembed)}" title="${esc(name)}">`,
+		// href deliberately unescaped: URLSearchParams percent-encodes
+		// everything unsafe, and Discord's scraper fetches the raw bytes
+		// without entity-decoding, so an &amp; would mangle the params.
+		`<link rel="alternate" type="application/json+oembed" href="${oembed}" title="${esc(name)}">`,
 	];
 	if (video) {
 		tags.push(
@@ -192,8 +195,11 @@ export default {
 			const a = (url.searchParams.get('a') || '').slice(0, 256);
 			const u = url.searchParams.get('u') || XCOM;
 			const safeU = /^https:\/\/x\.com\//.test(u) ? u : XCOM;
+			// type "rich" (not "link"): Discord treats a link-type oembed
+			// as having no embeddable content and suppresses the OG title
+			// and description, leaving media-only embeds.
 			return new Response(JSON.stringify({
-				type: 'link', version: '1.0',
+				type: 'rich', version: '1.0', title: 'Embed',
 				author_name: a, author_url: safeU,
 				provider_name: DOMAIN, provider_url: `https://${DOMAIN}`,
 			}), {
