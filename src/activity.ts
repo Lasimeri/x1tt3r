@@ -79,7 +79,9 @@ export function activityResponse(
 		content += '</blockquote>';
 	}
 	if (parts.quote) {
-		content += `<br><br><blockquote>❝ Quoting ${userLink(parts.quote.user)}: ${textHtml(parts.quote.text)}</blockquote>`;
+		// The blockquote already reads as a quote; the handle alone on its
+		// first line is enough and keeps characters inside Discord's cap.
+		content += `<br><br><blockquote>${userLink(parts.quote.user)}:<br>${textHtml(parts.quote.text)}</blockquote>`;
 	}
 
 	// A quote post with no media of its own shows the quoted post's media.
