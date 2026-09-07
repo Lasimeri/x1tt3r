@@ -23,19 +23,27 @@ function html(body: string, status = 200, maxAge = CACHE_OK): Response {
 	});
 }
 
-/** The crawler-facing page: meta tags only, no visible body. */
+/**
+ * The crawler-facing page: meta tags only, no visible body.
+ *
+ * With `activity` set (Discord), the page advertises the Mastodon-style
+ * status document instead of carrying description and media itself;
+ * see activity.ts for why. Every other crawler gets plain OpenGraph.
+ */
 export function tweetPage(
 	t: any,
 	handle: string,
 	id: string,
 	host: string,
 	full: { text?: string; quoteText?: string } | null,
+	activity = false,
 ): Response {
 	const canonical = `${XCOM}/${handle}/status/${id}`;
 	const name = t.user?.name || handle;
 	const text = buildText(t, full);
 	const video = pickVideo(t);
 	const photos = pickPhotos(t);
+	const card = video ? 'player' : photos.length ? 'summary_large_image' : 'summary';
 
 	const stats = `💬 ${(t.conversation_count ?? 0).toLocaleString('en-US')}   ❤️ ${(t.favorite_count ?? 0).toLocaleString('en-US')}`;
 
@@ -53,7 +61,7 @@ export function tweetPage(
 		`<meta property="og:site_name" content="${esc(host)}">`,
 		`<meta property="og:url" content="${esc(canonical)}">`,
 		`<meta property="og:title" content="${esc(`${name} (@${handle})`)}">`,
-		`<meta property="og:description" content="${esc(text)}">`,
+		`<meta property="twitter:card" content="${card}">`,
 		// href is deliberately not escaped: URLSearchParams already
 		// percent-encodes everything unsafe, and Discord fetches the raw
 		// bytes without entity-decoding, so "&amp;" would mangle the
@@ -61,21 +69,23 @@ export function tweetPage(
 		`<link rel="alternate" type="application/json+oembed" href="${oembedUrl}" title="${esc(name)}">`,
 	];
 
-	if (video) {
+	if (activity) {
 		tags.push(
-			'<meta property="twitter:card" content="player">',
-			`<meta property="og:video" content="${esc(video.url)}">`,
-			`<meta property="og:video:secure_url" content="${esc(video.url)}">`,
-			'<meta property="og:video:type" content="video/mp4">',
-			`<meta property="og:video:width" content="${video.width}">`,
-			`<meta property="og:video:height" content="${video.height}">`,
+			`<link rel="alternate" type="application/activity+json" href="https://${esc(host)}/users/${esc(handle)}/statuses/${id}">`,
 		);
-	} else if (photos.length) {
-		tags.push('<meta property="twitter:card" content="summary_large_image">');
-		for (const url of photos) tags.push(`<meta property="og:image" content="${esc(url)}">`);
 	} else {
-		tags.push('<meta property="twitter:card" content="summary">');
-		if (t.user?.profile_image_url_https) {
+		tags.push(`<meta property="og:description" content="${esc(text)}">`);
+		if (video) {
+			tags.push(
+				`<meta property="og:video" content="${esc(video.url)}">`,
+				`<meta property="og:video:secure_url" content="${esc(video.url)}">`,
+				'<meta property="og:video:type" content="video/mp4">',
+				`<meta property="og:video:width" content="${video.width}">`,
+				`<meta property="og:video:height" content="${video.height}">`,
+			);
+		} else if (photos.length) {
+			for (const url of photos) tags.push(`<meta property="og:image" content="${esc(url)}">`);
+		} else if (t.user?.profile_image_url_https) {
 			tags.push(`<meta property="og:image" content="${esc(t.user.profile_image_url_https)}">`);
 		}
 	}

@@ -27,6 +27,14 @@ export const ID_RE = /^\d{1,20}$/;
 export const RATE_LIMIT = 60;
 export const RATE_WINDOW_MS = 60_000;
 
+/**
+ * A quoted post whose text is at least this long is assumed to be a
+ * truncated long post and checked against the full-text fallback.
+ * Classic posts cap at 280 characters; the endpoint cuts long quotes
+ * there without any marker.
+ */
+export const QUOTE_TRUNCATION_HINT = 250;
+
 /** Edge cache lifetimes, seconds. */
 export const CACHE_OK = 3600;
 export const CACHE_MISSING = 300;

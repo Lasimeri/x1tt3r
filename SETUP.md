@@ -157,8 +157,9 @@ Not required for embeds. Takes two minutes and closes a real abuse vector.
 npm run smoke -- your-domain.com
 ```
 
-Fifteen checks: the human redirect, all three card types, long-post text, reply
-context, the oEmbed document, and that hostile input is refused. Every line
+Twenty-seven checks: the human redirect, all three card types, long-post text, reply
+context, the Discord activity document, the oEmbed document, and that hostile
+input is refused. Every line
 should read `ok`.
 
 ### By hand
@@ -224,7 +225,8 @@ npx wrangler tail    # then post a link and watch the request come in
 |---|---|---|
 | No embed at all | Discord cached an old scrape of that URL | Post a URL Discord has not seen, or append `?v=2` |
 | Media shows, no text | An oEmbed document returning `type: "link"` | Already fixed here; if you edited `render.ts`, keep it `"rich"` |
-| Text cut around 350 characters | Discord's display cap for scraped embeds | Not fixable server-side. Every fixer hits this, including fxtwitter |
+| Video shows, no text (Discord) | Discord fell back to the OpenGraph page, whose video card has no description slot | Check `curl https://your-domain.com/api/v1/statuses/<id>` returns JSON with the text in `content`; that is the document Discord should be rendering |
+| Text cut around 350 characters (Discord) | Same fallback as above: the cap applies to scraped descriptions, not to the activity document | Same check as above |
 | Title cut around 18 characters | Narrow media makes a narrow card | Not fixable. The author line carries the identity as a fallback |
 | "Tweet unavailable" on a live post | The syndication endpoint returned nothing | Usually the post is age-restricted or the endpoint is failing intermittently. Retry |
 | Long posts truncated at ~280 | The FxEmbed fallback is unreachable | Check `curl https://api.fxtwitter.com/status/20`. If it is down, long posts degrade until it returns |
@@ -262,8 +264,13 @@ fetch cdn.syndication.twimg.com/tweet-result?id=123
         v
 HTML page of OpenGraph meta tags
         |
+        +-- Discord? --> page also links /users/:handle/statuses/:id
+        |                as application/activity+json; Discord then
+        |                fetches /api/v1/statuses/:id and renders that
+        |                JSON (text + images + video in one embed)
+        |
         v
-Discord fetches /oembed for the author line, renders the embed
+other crawlers read the OpenGraph tags directly
 ```
 
 **Why two data sources.** The syndication endpoint is X's own, unauthenticated,
@@ -272,10 +279,26 @@ it returns truncated text plus a stub id, and no unauthenticated X surface has
 the rest. FxEmbed's public API does, so it fills that one gap. If it goes away,
 long posts fall back to truncated text and nothing else breaks.
 
+**Why the activity document.** Discord's OpenGraph video card has no
+description slot: with `og:video` present, the post text is dropped. Discord
+does render Mastodon posts natively, though, with text, up to four images, and
+video together. A page that advertises a `<link rel="alternate"
+type="application/activity+json">` is treated as a Mastodon post: Discord takes
+the host from that link and fetches `/api/v1/statuses/:id`, expecting a
+Mastodon API v1 status object. `src/activity.ts` builds one from the
+syndication payload: `content` is the post as HTML (links, line breaks, the
+parent and quoted posts as blockquotes, a stats line), `media_attachments`
+carries photos and the mp4, `account` carries the author. Only Discord asks
+for it, so the page served to Discord omits description and media tags and
+every other crawler keeps plain OpenGraph. Side effect worth knowing: text in
+the activity document is not subject to the ~350-character cap Discord applies
+to scraped descriptions, so long posts render in full.
+
 **Why the oEmbed endpoint.** Discord fetches it to fill the small author line
-above the title. It must report `type: "rich"`; a `"link"` type makes Discord
-treat the page as having no embeddable content and drop the title and
-description entirely.
+above the title on the OpenGraph path. It must report `type: "rich"`; a
+`"link"` type makes Discord treat the page as having no embeddable content and
+drop the title and description entirely. On the activity path Discord draws
+the author line from the document's `account` instead.
 
 **Security properties.** The redirect target is rebuilt from a validated handle
 and a numeric id, never from user input, so this cannot be used as an open
@@ -290,8 +313,13 @@ There is a per-IP rate limit. The worker stores nothing and logs nothing.
 - **Replies to the post are not shown.** The post's own text, its parent, and
   any quoted post are all included. Fetching the replies *below* a post needs
   an authenticated API.
-- **Discord truncates long descriptions at display time**, around 350
-  characters. Server-side output is complete; the cut is in Discord's renderer.
+- **Discord truncates scraped descriptions at display time**, around 350
+  characters. This only bites when Discord falls back from the activity
+  document to the OpenGraph page; on the normal path long posts render in full.
+- **A quoted long post can still be cut** at about 280 characters. The
+  syndication endpoint truncates quoted long posts silently, with no marker;
+  quotes near that length are re-checked against the FxEmbed fallback, which
+  fills them in when it is reachable.
 - **Narrow media makes a narrow card**, which truncates the title. The author
   line is ordered to keep identity visible when that happens.
 - **Age-restricted and protected posts return nothing** from the public

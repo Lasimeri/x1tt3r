@@ -1,12 +1,28 @@
 // Everything that talks to X, and the text assembly that depends on its
 // payload shapes. Nothing here knows about HTML or routing.
 
-import { CACHE_OK, USER_RE } from './config';
+import { CACHE_OK, QUOTE_TRUNCATION_HINT, USER_RE } from './config';
 
 export interface Video {
 	url: string;
 	width: number;
 	height: number;
+}
+
+export interface Media {
+	type: 'photo' | 'video';
+	/** The image itself, or the highest-bitrate mp4. */
+	url: string;
+	/** Thumbnail; for photos, the image again. */
+	preview: string;
+	width: number;
+	height: number;
+}
+
+export interface TextParts {
+	text: string;
+	reply?: { user: string; text?: string };
+	quote?: { user: string; text: string };
 }
 
 /**
@@ -60,9 +76,15 @@ export async function fetchFullText(id: string): Promise<{ text?: string; quoteT
 	}
 }
 
-/** True when this tweet (or its quote) is truncated by the endpoint. */
+/**
+ * True when this tweet (or its quote) may be truncated by the endpoint.
+ * The tweet itself carries a `note_tweet` stub when cut; a quoted note
+ * tweet is cut silently at the classic limit, so a quote that long is
+ * treated as suspect and the fallback decides by comparing lengths.
+ */
 export function isNoteTweet(t: any): boolean {
-	return Boolean(t.note_tweet || t.quoted_tweet?.note_tweet);
+	return Boolean(t.note_tweet || t.quoted_tweet?.note_tweet)
+		|| (t.quoted_tweet?.text?.length ?? 0) >= QUOTE_TRUNCATION_HINT;
 }
 
 /** Display text: t.co links expanded, media t.co tails removed. */
@@ -78,29 +100,59 @@ function expandText(t: any): string {
 }
 
 /**
- * The full embed description: the tweet itself, then the tweet it
- * replies to, then any quoted tweet. Replies *to* this tweet are not
- * available from the unauthenticated endpoint.
+ * The post text and its context, kept separate so each renderer can
+ * lay them out its own way: the tweet itself, the tweet it replies to,
+ * and any quoted tweet. Replies *to* this tweet are not available from
+ * the unauthenticated endpoint.
  */
-export function buildText(t: any, full: { text?: string; quoteText?: string } | null): string {
-	let text = (t.note_tweet && full?.text) ? full.text : expandText(t);
+export function textParts(t: any, full: { text?: string; quoteText?: string } | null): TextParts {
+	const parts: TextParts = {
+		text: (t.note_tweet && full?.text) ? full.text : expandText(t),
+	};
 
 	if (t.parent?.text) {
-		const parentUser = t.parent.user?.screen_name || t.in_reply_to_screen_name || '?';
-		text += `\n\n↪️ Replying to @${parentUser}: ${expandText(t.parent)}`;
+		parts.reply = {
+			user: t.parent.user?.screen_name || t.in_reply_to_screen_name || '?',
+			text: expandText(t.parent),
+		};
 	} else if (t.in_reply_to_screen_name) {
-		text += `\n\n↪️ Replying to @${t.in_reply_to_screen_name}`;
+		parts.reply = { user: t.in_reply_to_screen_name };
 	}
 
 	if (t.quoted_tweet?.text) {
-		const quoteUser = t.quoted_tweet.user?.screen_name || '?';
-		const quoteText = (t.quoted_tweet.note_tweet && full?.quoteText)
-			? full.quoteText
-			: expandText(t.quoted_tweet);
-		text += `\n\n❝ Quoting @${quoteUser}: ${quoteText}`;
+		// The fallback's quote text wins only when it actually carries
+		// more than the endpoint gave us.
+		const own = expandText(t.quoted_tweet);
+		const fromFallback = full?.quoteText || '';
+		parts.quote = {
+			user: t.quoted_tweet.user?.screen_name || '?',
+			text: fromFallback.length > own.length ? fromFallback : own,
+		};
+	}
+
+	return parts;
+}
+
+/** The full embed description as one plain-text block, for og:description. */
+export function buildText(t: any, full: { text?: string; quoteText?: string } | null): string {
+	const p = textParts(t, full);
+	let text = p.text;
+
+	if (p.reply) {
+		text += `\n\n↪️ Replying to @${p.reply.user}`;
+		if (p.reply.text !== undefined) text += `: ${p.reply.text}`;
+	}
+	if (p.quote) {
+		text += `\n\n❝ Quoting @${p.quote.user}: ${p.quote.text}`;
 	}
 
 	return text;
+}
+
+function bestMp4(variants: any[]): any | null {
+	return variants
+		.filter((v: any) => v.content_type === 'video/mp4')
+		.sort((a: any, b: any) => (b.bitrate || 0) - (a.bitrate || 0))[0] ?? null;
 }
 
 /** Highest-bitrate mp4, across both payload shapes the endpoint emits. */
@@ -110,9 +162,7 @@ export function pickVideo(t: any): Video | null {
 		: null;
 
 	if (media?.video_info?.variants) {
-		const best = media.video_info.variants
-			.filter((v: any) => v.content_type === 'video/mp4')
-			.sort((a: any, b: any) => (b.bitrate || 0) - (a.bitrate || 0))[0];
+		const best = bestMp4(media.video_info.variants);
 		if (best) {
 			return {
 				url: best.url,
@@ -136,6 +186,51 @@ export function pickPhotos(t: any): string[] {
 		.slice(0, 4)
 		.map((p: any) => p.url)
 		.filter(Boolean);
+}
+
+/**
+ * Every attachment in post order, photos and videos together, from
+ * `mediaDetails` when the endpoint sends it and the flat `photos` /
+ * `video` fields otherwise.
+ */
+export function pickMedia(t: any): Media[] {
+	const out: Media[] = [];
+
+	if (Array.isArray(t.mediaDetails) && t.mediaDetails.length) {
+		for (const m of t.mediaDetails) {
+			const width = m.original_info?.width || 0;
+			const height = m.original_info?.height || 0;
+			if (m.type === 'photo' && m.media_url_https) {
+				out.push({
+					type: 'photo',
+					url: m.media_url_https,
+					preview: m.media_url_https,
+					width: width || 1200,
+					height: height || 675,
+				});
+			} else if ((m.type === 'video' || m.type === 'animated_gif') && m.video_info?.variants) {
+				const best = bestMp4(m.video_info.variants);
+				if (best) {
+					out.push({
+						type: 'video',
+						url: best.url,
+						preview: m.media_url_https || '',
+						width: width || 1280,
+						height: height || 720,
+					});
+				}
+			}
+		}
+		return out.slice(0, 4);
+	}
+
+	for (const p of Array.isArray(t.photos) ? t.photos : []) {
+		if (p.url) out.push({ type: 'photo', url: p.url, preview: p.url, width: p.width || 1200, height: p.height || 675 });
+	}
+	const v = pickVideo(t);
+	if (v) out.push({ type: 'video', url: v.url, preview: t.video?.poster || '', width: v.width, height: v.height });
+
+	return out.slice(0, 4);
 }
 
 /** The API's handle when it is valid, else whatever the path carried. */

@@ -27,6 +27,7 @@ Live at **[x1tt3r.com](https://x1tt3r.com)**. To run your own, see **[SETUP.md](
 | `src/config.ts` | Every knob worth turning (theme colour, crawler list, limits) |
 | `src/twitter.ts` | Talks to X, assembles the post text |
 | `src/render.ts` | Builds the meta tags and the oEmbed document |
+| `src/activity.ts` | The Mastodon-style status document Discord renders, so text and video share one embed |
 | `src/home.ts` | The root page: styled landing page and link converter |
 | `scripts/smoke.sh` | Tests a live deployment end to end |
 | `wrangler.toml` | Worker name and domains |
@@ -46,6 +47,13 @@ npm run smoke -- your-domain.com # test a deployment
 A crawler (`Discordbot`, `TelegramBot`, `Slackbot`, ...) gets an HTML page of
 OpenGraph meta tags built from X's public syndication endpoint. Everything else
 gets a 302 to the canonical x.com URL. No API key, no login, no scraping.
+
+Discord gets one extra hint: a `<link rel="alternate"
+type="application/activity+json">` pointing at `/api/v1/statuses/:id` on the same
+host. Discord treats that as a Mastodon post and renders the JSON it finds there,
+which is the only way to get post text next to a playable video: Discord's plain
+video card has no description slot. As a bonus, long posts escape the 350-character
+cap Discord applies to scraped descriptions.
 
 Only `/:user/status/:id` shapes are served; anything else returns 404, so the
 worker cannot be used as an open redirect.
