@@ -55,8 +55,12 @@ which is the only way to get post text next to a playable video: Discord's plain
 video card has no description slot. As a bonus, long posts escape the 350-character
 cap Discord applies to scraped descriptions.
 
-Only `/:user/status/:id` shapes are served; anything else returns 404, so the
-worker cannot be used as an open redirect.
+Only `/:user/status/:id` shapes are embedded. Every other x.com-shaped path (a
+profile, a hashtag, a search) sends crawlers and people alike to the same path
+on x.com: the host is a constant and the path must be made of URL characters,
+so the worker mirrors x.com's paths and cannot be used as an open redirect.
+Plain `http://` is sent to `https://`, and every response carries HSTS, a
+content security policy, and frame denial.
 
 ## Licence
 

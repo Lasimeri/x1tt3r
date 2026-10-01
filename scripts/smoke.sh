@@ -55,9 +55,20 @@ printf 'routing\n'
 check 'human gets 302 to x.com'   '302 https://x.com/jack/status/20' "$(human /jack/status/20)"
 check 'root serves the home page' "og:site_name\" content=\"$HOST\"" "$(curl -sS "$BASE/")"
 check 'home page links the repo'  'github.com/Lasimeri/x1tt3r'      "$(curl -sS "$BASE/")"
-check 'garbage path 404s'         '404'                              "$(code '/jack/status/20%27%22')"
-check 'unknown path 404s'         '404'                              "$(code '/not/a/tweet')"
+check 'malformed id mirrors encoded' '302 https://x.com/jack/status/20%27%22' "$(human '/jack/status/20%27%22')"
+check 'unknown path mirrors'      '302 https://x.com/not/a/tweet'    "$(human /not/a/tweet)"
 check 'activity href redirects'   '302 https://x.com/jack/status/20' "$(human /users/jack/statuses/20)"
+check 'profile goes to x.com'     '302 https://x.com/jack'           "$(human /jack)"
+check 'profile tab goes to x.com' '302 https://x.com/jack/with_replies' "$(human /jack/with_replies)"
+check 'hashtag goes to x.com'     '302 https://x.com/hashtag/nasa'   "$(human /hashtag/nasa)"
+check 'search keeps its query'    '302 https://x.com/search?q=nasa'  "$(curl -sS -o /dev/null -w '%{http_code} %{redirect_url}' "$BASE/search?q=nasa")"
+check 'protocol-relative refused' '404'                              "$(code '//evil.example')"
+check 'http goes to https'        "301 https://$HOST/jack/status/20" "$(curl -sS -o /dev/null -w '%{http_code} %{redirect_url}' "http://$HOST/jack/status/20")"
+
+printf '\nheaders\n'
+check 'hsts on every response'    'strict-transport-security: max-age=31536000' "$(curl -sSI "$BASE/jack/status/20?cb=$CB" | tr 'A-Z' 'a-z')"
+check 'home page has a hashed csp' "content-security-policy: default-src 'none'; style-src 'sha256-" "$(curl -sSI "$BASE/?cb=$CB" | tr 'A-Z' 'a-z')"
+check 'home page is tabular'      '<table class="t">'                "$(curl -sS "$BASE/?cb=$CB")"
 
 printf '\nembeds (OpenGraph path, Telegram user agent)\n'
 check 'text post: title'          'og:title" content="jack (@jack)"'            "$(tg /jack/status/20)"

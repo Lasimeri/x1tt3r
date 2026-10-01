@@ -58,33 +58,37 @@ h1 {
 	letter-spacing: 0.1em;
 	text-transform: lowercase;
 }
-.rows {
-	display: flex;
-	flex-direction: column;
-	gap: 1px;
+/* tables: hairlines between rows, the first column the subject */
+table.t {
+	width: 100%;
+	border-collapse: separate;
+	border-spacing: 0 1px;
 	background: var(--border);
 	border: 1px solid var(--border);
 	margin-bottom: 2rem;
 }
-.row {
+.t th, .t td {
 	background: var(--bg);
-	padding: 1rem 1.2rem;
-	display: flex;
-	justify-content: space-between;
-	align-items: baseline;
-	text-decoration: none;
-	transition: background 0.15s;
+	padding: 0.8rem 1.2rem;
+	text-align: left;
+	vertical-align: top;
+	font-weight: 400;
 }
-a.row:hover { background: var(--surface); }
-.row-name { font-size: 0.8rem; color: var(--text); letter-spacing: 0.02em; }
-.row-name span { color: var(--accent); }
-.row-desc {
-	font-size: 0.65rem;
+.t th {
+	font-size: 0.6rem;
 	color: var(--text-dim);
-	text-align: right;
-	flex-shrink: 0;
-	margin-left: 1rem;
+	letter-spacing: 0.1em;
+	text-transform: lowercase;
+	opacity: 0.7;
 }
+.t td {
+	font-size: 0.68rem;
+	color: var(--text-dim);
+	line-height: 1.7;
+}
+.t td:first-child { color: var(--text); font-size: 0.75rem; }
+.t td span { color: var(--accent); }
+.t td code { font-family: inherit; color: var(--text); }
 /* the transform, shown literally */
 .transform {
 	background: var(--bg);
@@ -207,8 +211,7 @@ a.row:hover { background: var(--surface); }
 .footer a:hover { text-decoration: underline; }
 @media (max-width: 600px) {
 	body { padding: 1.25rem; }
-	.row { flex-direction: column; gap: 0.25rem; }
-	.row-desc { text-align: left; margin-left: 0; }
+	.t th, .t td { padding: 0.7rem 0.8rem; }
 	.status-line, .repo-meta { flex-direction: column; gap: 0.5rem; }
 	.transform { font-size: 0.65rem; }
 }
@@ -265,8 +268,29 @@ function affixDiff(host: string): { prefix: string; ins: string; suffix: string 
 	};
 }
 
+/**
+ * The page's inline style and script are constants, so their SHA-256
+ * hashes are the content security policy: no other script or style can
+ * run, and nothing loads from anywhere. Computed once per isolate.
+ */
+let cspPromise: Promise<string> | null = null;
+
+async function sha256(s: string): Promise<string> {
+	const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+	return btoa(String.fromCharCode(...new Uint8Array(digest)));
+}
+
+function csp(): Promise<string> {
+	if (!cspPromise) {
+		cspPromise = Promise.all([sha256(CSS), sha256(JS)]).then(([css, js]) =>
+			`default-src 'none'; style-src 'sha256-${css}'; script-src 'sha256-${js}'; ` +
+			`img-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'`);
+	}
+	return cspPromise;
+}
+
 /** The root page, styled after seaof.glass. */
-export function homePage(host: string): Response {
+export async function homePage(host: string): Promise<Response> {
 	const diff = affixDiff(host);
 	const name = host.split('.')[0];
 
@@ -322,28 +346,26 @@ export function homePage(host: string): Response {
 </div>
 
 <div class="section-label">-- what embeds --</div>
-<div class="rows">
-	<div class="row">
-		<div class="row-name"><span>/</span>text</div>
-		<div class="row-desc">the whole post, long ones included</div>
-	</div>
-	<div class="row">
-		<div class="row-name"><span>/</span>context</div>
-		<div class="row-desc">the post it replies to, and any quote</div>
-	</div>
-	<div class="row">
-		<div class="row-name"><span>/</span>media</div>
-		<div class="row-desc">photos, and video that plays inline</div>
-	</div>
-	<div class="row">
-		<div class="row-name"><span>/</span>counts</div>
-		<div class="row-desc">replies and likes</div>
-	</div>
-	<div class="row">
-		<div class="row-name"><span>/</span>humans</div>
-		<div class="row-desc">clicking still lands on x.com</div>
-	</div>
-</div>
+<table class="t">
+	<thead><tr><th>part</th><th>what the embed carries</th></tr></thead>
+	<tbody>
+		<tr><td><span>/</span>text</td><td>the whole post, long ones included</td></tr>
+		<tr><td><span>/</span>context</td><td>the post it replies to, and any quote</td></tr>
+		<tr><td><span>/</span>media</td><td>photos, and video that plays inline</td></tr>
+		<tr><td><span>/</span>counts</td><td>replies and likes</td></tr>
+	</tbody>
+</table>
+
+<div class="section-label">-- where a link lands --</div>
+<table class="t">
+	<thead><tr><th>you paste</th><th>discord, telegram, slack</th><th>a person who clicks</th></tr></thead>
+	<tbody>
+		<tr><td><code>/user/status/123</code></td><td>the embed above</td><td>that post on x.com</td></tr>
+		<tr><td><code>/i/status/123</code></td><td>the embed above</td><td>that post on x.com</td></tr>
+		<tr><td><code>/user</code>, <code>/hashtag/...</code>, <code>/search?q=</code></td><td>sent on to x.com</td><td>the same page on x.com</td></tr>
+		<tr><td>anything that is not an x.com path</td><td>not found</td><td>not found</td></tr>
+	</tbody>
+</table>
 
 <div class="section-label">-- source --</div>
 <a class="repo" href="${REPO}">
@@ -396,6 +418,7 @@ export function homePage(host: string): Response {
 		headers: {
 			'Content-Type': 'text/html; charset=utf-8',
 			'Cache-Control': `public, max-age=${CACHE_OK}`,
+			'Content-Security-Policy': await csp(),
 			'X-Content-Type-Options': 'nosniff',
 			'Referrer-Policy': 'no-referrer',
 		},

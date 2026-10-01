@@ -157,7 +157,7 @@ Not required for embeds. Takes two minutes and closes a real abuse vector.
 npm run smoke -- your-domain.com
 ```
 
-Twenty-seven checks: the human redirect, all three card types, long-post text, reply
+Thirty-seven checks: the human redirects (posts, profiles, hashtags, search, http to https), the headers, all three card types, long-post text, reply
 context, the Discord activity document, the oEmbed document, and that hostile
 input is refused. Every line
 should read `ok`.
@@ -300,10 +300,19 @@ above the title on the OpenGraph path. It must report `type: "rich"`; a
 drop the title and description entirely. On the activity path Discord draws
 the author line from the document's `account` instead.
 
-**Security properties.** The redirect target is rebuilt from a validated handle
-and a numeric id, never from user input, so this cannot be used as an open
-redirect. Everything reaching a meta tag is HTML-escaped. The oEmbed reflection
-is length-capped, pinned to an x.com URL, and served as JSON with `nosniff`.
+**Security properties.** A post's redirect target is rebuilt from a validated
+handle and a numeric id. Any other path goes to the same path on x.com: the
+host is the constant `XCOM`, the path is accepted only when it is made of URL
+characters with no empty segment (so `//evil.example` is refused), and a query
+is carried only for `/search`. Nothing in a request can name
+another host, which is what makes this a mirror and not an open redirect.
+Plain `http://` answers a 301 to `https://`. Every response carries
+`Strict-Transport-Security` (a year, subdomains, preload), `X-Frame-Options:
+DENY`, `Referrer-Policy: no-referrer`, a `Permissions-Policy` that turns every
+feature off, and a content security policy: the home page allows exactly its
+own inline style and script by SHA-256 hash, everything else allows nothing.
+Everything reaching a meta tag is HTML-escaped. The oEmbed reflection is
+length-capped, pinned to an x.com URL, and served as JSON with `nosniff`.
 There is a per-IP rate limit. The worker stores nothing and logs nothing.
 
 ---
