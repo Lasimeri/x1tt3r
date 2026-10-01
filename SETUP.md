@@ -157,7 +157,7 @@ Not required for embeds. Takes two minutes and closes a real abuse vector.
 npm run smoke -- your-domain.com
 ```
 
-Thirty-seven checks: the human redirects (posts, profiles, hashtags, search, http to https), the headers, all three card types, long-post text, reply
+Thirty-six checks: the human redirects (posts, profiles, hashtags, search, http to https), the headers, all three card types, long-post text, reply
 context, the Discord activity document, the oEmbed document, and that hostile
 input is refused. Every line
 should read `ok`.
